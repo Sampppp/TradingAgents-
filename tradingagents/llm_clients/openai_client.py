@@ -403,6 +403,14 @@ class OpenAIClient(BaseLLMClient):
                 continue
             llm_kwargs[key] = self.kwargs[key]
 
+        session_id = self.kwargs.get("session_id") or (getattr(self, "config", None) or {}).get("session_id")
+        print("DEBUG openai_client session_id:", session_id, "from kwargs:", self.kwargs.get("session_id"), "from config:", getattr(self, "config", None), "self.__dict__ keys:", [k for k in self.__dict__ if not k.startswith("_")])
+        if session_id:
+            llm_kwargs["default_headers"] = {"x-session-id": session_id}
+            print("DEBUG injecting default_headers:", llm_kwargs["default_headers"])
+        else:
+            print("DEBUG NO session_id; llm_kwargs keys:", list(llm_kwargs.keys()))
+        print("DEBUG final llm_kwargs default_headers:", llm_kwargs.get("default_headers"))
         # The subclass (provider quirks) comes from the registry spec.
         return chat_cls(**llm_kwargs)
 

@@ -118,6 +118,9 @@ def build_llm_kwargs(config: dict) -> dict[str, Any]:
     if temperature is not None and temperature != "":
         kwargs["temperature"] = float(temperature)
 
+    session_id = config.get("session_id")
+    if session_id is not None and session_id != "":
+        kwargs["session_id"] = session_id
     # SDK retry budget is cross-provider. Forward it only when explicitly set
     # so each provider keeps its own default (usually 2) otherwise (#1091).
     max_retries = config.get("llm_max_retries")

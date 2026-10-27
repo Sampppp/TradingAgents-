@@ -45,6 +45,8 @@ from tradingagents.llm_clients.openai_client import check_endpoint
 def get_user_selections(flags=None):
     """Ask for the run's settings, offering the previous run's answers."""
     selections = _prompt_selections(load_last_run(), flags or {})
+    selections["session_id"] = flags.get("session_id")
+    print("DEBUG selections session_id from flags:", flags.get("session_id"), "-> selections:", selections.get("session_id"))
     save_last_run(selections)
     return selections
 
