@@ -31,40 +31,44 @@ This workflow triggers the end-to-end quantitative research and trading pipeline
 
 ### 3. Two-Bucket Synthesis & Ranking
 - **Goal**: Prioritize capital protection and exits before allocating capital to new buys.
-- **Action**: Read all generated `complete_report.md` files and split candidates into two buckets:
+- **Action**: Read all generated `complete_report.md` files, extracting both `Rating` and `confidence_score`:
   1. **Bucket A — Existing Holdings (Sell / Trim / Hold)**:
      - Compare `complete_report.md` against the original thesis and Stop Loss in `trading_journal/<TICKER>.md`.
-     - Flag any broken theses, breached stops, or `Underweight`/`Sell` ratings for immediate Exit/Trim, noting how much buying power will be freed.
+     - If a holding is rated `Underweight` or `Sell`, default to **Exit/Trim** unless the original catalyst in `<TICKER>.md` explicitly overrides short-term weakness (if overriding to `Hold`, you MUST justify why in the proposal).
   2. **Bucket B — New Candidates (Buys)**:
-     - Rank new candidates by `confidence_score` and `Rating` (`Buy > Overweight > Hold > Underweight > Sell`).
-     - Filter out any candidate rated `Hold` or lower.
+     - Filter out any candidate with `Rating` of `Hold` or lower, OR `confidence_score < min_confidence` (from `risk_profile.json`).
+     - Rank remaining candidates by `confidence_score` and `Rating` (`Buy > Overweight`).
 
-### 4. Position Sizing (The Filter)
-- **Goal**: Calculate exact share quantities within account limits.
+### 4. Position Sizing & Order Type Selection (The Filter)
+- **Goal**: Calculate exact share/dollar quantities within account limits and select a valid broker order type.
 - **Action**:
-  - Using the portfolio data and `risk_profile.json` loaded in Step 1 (plus any cash freed by proposed Sells), calculate the exact share quantity (supporting fractional shares) that fits within both `max_position_pct` and `max_position_usd`.
-  - Define the exact Entry/Exit Price and Stop Loss level from the report's technical/risk levels.
+  - Using Step 1 portfolio data and `risk_profile.json` (plus any cash freed by proposed Sells), calculate the target allocation within `max_position_pct` and `max_position_usd`.
+  - **Order Type Rule**: If the target allocation results in **fractional shares**, specify `Market Order ($Dollar_Amount)` (as Robinhood rejects fractional limit orders). Only specify `Limit Order` for whole-share quantities.
+  - Set the Stop Loss using the report's support level, capped at a maximum drawdown of `default_stop_loss_pct` from the live entry price.
 
 ### 5. Verification & Proposal
 - **Goal**: Present a transparent, fully audited trade proposal.
 - **Action**:
   1. Print the **Verification Checklist**:
-     - [ ] Portfolio, positions, and `risk_profile.json` audited upfront
+     - [ ] Portfolio, positions, and `risk_profile.json` (`max_position_pct`, `max_position_usd`, `min_confidence`, `default_stop_loss_pct`) loaded upfront
      - [ ] Original theses recalled from `trading_journal/` for existing holdings
      - [ ] Market scan completed for new candidates
      - [ ] `cli.main` executed for all candidates (via Batch Launch & Handoff verification)
-     - [ ] All `complete_report.md` files synthesized into Exit vs. Entry buckets
-     - [ ] Position sizing validated against `max_position_pct` and `max_position_usd`
-  2. Present the **Structured Proposal** (list Exits/Trims first, followed by New Buys):
+     - [ ] All `complete_report.md` files synthesized with `Rating` and `confidence_score`
+     - [ ] Fractional orders set to `Market ($)` and sizing validated against risk caps
+  2. Present the **Structured Proposal** (list Bucket A Holdings/Exits first, followed by Bucket B New Buys):
      - **Ticker**: [SYMBOL]
-     - **Thesis**: [Brief summary from report + comparison to original journal thesis if held]
-     - **Action**: [Buy / Sell / Trim / Hold] at $[Entry/Exit Price] | **Target Stop Loss**: $[Stop Loss]
+     - **Rating & Confidence**: [Rating] (`confidence_score` vs. `min_confidence`)
+     - **Thesis**: [Summary from report + comparison to original journal thesis; justify any `Hold` on an `Underweight` rating]
+     - **Action & Order Type**: [Buy / Sell / Trim / Hold] — [Market ($Amount) for fractional | Limit ($Price) for whole shares] | **Target Stop Loss**: $[Stop Loss]
      - **Sizing**: [Quantity] shares (~$[Total USD Amount])
-     - **Risk Check**: [PASSED / FAILED] (cite `%` of portfolio and USD cap used)
+     - **Risk Check**: [PASSED / FAILED] (cite `%` of portfolio, USD cap, and `min_confidence` check)
 
 ### 6. Execution & Journaling (The Hands)
-- **Goal**: Safe, deterministic order placement and persistent record keeping.
+- **Goal**: Safe, deterministic order placement and 100% journal coverage across both buckets.
 - **Action**:
-  1. **Await explicit user approval** for each proposed trade.
-  2. If approved: Execute `rboin__review_equity_order` $\rightarrow$ `rboin__place_equity_order`.
-  3. **Journal**: Immediately update `/home/spak/TradingAgents/trading_journal/<TICKER>.md` per `SKILL.md` standards, recording whether the order status is `FILLED` or `PENDING`, the thesis/post-mortem, and the Stop Loss exit plan. For held positions where no trade was executed, append the timestamped HOLD audit note.
+  1. **Await explicit user approval** for proposed trades.
+  2. If approved: Execute `rboin__review_equity_order` $\rightarrow$ `rboin__place_equity_order`. (If `review_equity_order` reveals live price slippage `> 2%` above the report price, adjust the Stop Loss proportionally).
+  3. **Journal All Candidates (Trades + Holds)**:
+     - For **new files**, create `/home/spak/TradingAgents/trading_journal/<TICKER>.md`.
+     - For **existing files** (including all Bucket A positions held without trades), append a timestamped update block using `cat << 'EOF' >> ...` in a single batch shell command.

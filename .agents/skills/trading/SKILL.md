@@ -26,7 +26,7 @@ To avoid timeouts, log clobbering, and API rate limits, the agent MUST use these
      ```bash
      nohup bash -c '
        DATE=$(date +%Y-%m-%d)
-       echo "RUNNING" > /home/spak/.tradingagents/logs/batch_status.txt
+       echo "RUNNING: $TICKER" > /home/spak/.tradingagents/logs/batch_status.txt
        for TICKER in TICKER1 TICKER2 TICKER3; do
          EXISTING=$(find /home/spak/.tradingagents/logs/reports/ -path "*${TICKER}*/complete_report.md" -newermt "$DATE" 2>/dev/null)
          if [ -z "$EXISTING" ]; then
@@ -48,19 +48,36 @@ To avoid timeouts, log clobbering, and API rate limits, the agent MUST use these
   3. **Wait**: Explicitly instruct the user to run the verification command and notify the agent when `batch_status.txt` reads `COMPLETE`. **DO NOT** poll for files automatically.
   4. **Verify**: Once the user confirms completion, verify and read each ticker's `complete_report.md` before proceeding to Synthesis.
 
-## 🛡 Order Execution & Stop-Loss Standards
-- **Two-Step Execution**: Never call `rboin__place_equity_order` without first calling `rboin__review_equity_order` and receiving explicit user approval.
-- **Stop-Loss Handling**: Standard equity buy orders cannot attach a contingent Stop Loss prior to fill. The proposed Stop Loss MUST be recorded in the ticker's journal under **Exit Plan** to be placed after fill confirmation or enforced during subsequent portfolio audits.
+## 🛡 Order Execution, Slippage & Risk Profile Standards
+- **Risk Profile Enforcement**: Read `/home/spak/TradingAgents/risk_profile.json` and enforce all four parameters:
+  - `max_position_pct` & `max_position_usd`: Hard ceiling on total position value (existing + new).
+  - `min_confidence`: Reject any New Buy candidate whose `complete_report.md` confidence score is `< min_confidence` (e.g., `0.67`).
+  - `default_stop_loss_pct`: If the report's technical stop loss exceeds `default_stop_loss_pct` (e.g., `9%` below actual entry), tighten the Stop Loss to `Entry Price * (1 - default_stop_loss_pct)`.
+- **Fractional vs. Whole-Share Order Types (Broker Constraint)**:
+  - Robinhood **rejects `limit` orders on fractional shares**.
+  - If sizing requires **fractional shares** (`quantity` is not a whole integer), you MUST propose and execute `type: "market"` using `dollar_amount`.
+  - Only use `type: "limit"` for **whole-share quantities** (`1, 2, 3...`).
+- **Live Price Slippage Check**: `complete_report.md` prices may reflect prior closes. Before finalizing Step 4 sizing or placing a `market` order, check the live price via MCP or `rboin__review_equity_order`. If the live price is `> 2%` above the report's recommended entry price, recalculate the Stop Loss and warn the user in the proposal.
+- **Two-Step Execution**: Never call `rboin__place_equity_order` without a matching `rboin__review_equity_order` and explicit user approval. Never silently change an order from `limit` to `market` without re-confirming with the user.
 
 ## 📓 Journaling Standards
-To prevent "Thesis Amnesia" across sessions, maintain a persistent record in `/home/spak/TradingAgents/trading_journal/<TICKER>.md`.
+To prevent "Thesis Amnesia" and avoid `editor` diff errors on existing files, maintain `/home/spak/TradingAgents/trading_journal/<TICKER>.md` using these rules:
 
-- **Recall**: Before analyzing any ticker already in the portfolio, read `<TICKER>.md` to recall the original entry thesis and exit triggers.
-- **Entry Record (BUY)**: Upon executing a BUY, create or update `<TICKER>.md` with:
-  - **Date, Order Status (`FILLED` or `PENDING`), Entry/Limit Price, Quantity**.
-  - **Original Thesis**: The core catalyst and valuation rationale from `complete_report.md`.
-  - **Exit Plan**: The exact Stop Loss price and specific fundamental/technical conditions that break the thesis.
-- **Update Record (HOLD)**: When an existing position is audited and held, append a timestamped audit note at the end of `<TICKER>.md` (using standard file replacement at the EOF or `cat << 'EOF' >> /home/spak/TradingAgents/trading_journal/<TICKER>.md`) explaining why the thesis remains intact. Never overwrite historical entries.
-- **Exit Record (SELL/TRIM)**: Upon executing a SELL or TRIM, append:
-  - **Date, Order Status (`FILLED` or `PENDING`), Exit Price, Quantity Sold, Realized PnL**.
-  - **Post-Mortem**: Did the original thesis hold, or which exit condition was triggered?
+- **Recall**: Before analyzing any ticker in the portfolio or watchlist with an existing journal, read `<TICKER>.md`.
+- **Creating New Journals (First-Time BUY)**: Use the file creation tool to write `/home/spak/TradingAgents/trading_journal/<TICKER>.md` with:
+  - **Date, Order Status (`FILLED` or `PENDING`), Entry Price, Quantity / Dollar Amount**.
+  - **Original Thesis**: Core catalyst, Rating, and `confidence_score` from `complete_report.md`.
+  - **Exit Plan**: Target Stop Loss price (bounded by `default_stop_loss_pct`) and thesis-breaking conditions.
+- **Appending to Existing Journals (Add-On BUY, HOLD, TRIM, or SELL)**:
+  - **DO NOT** use `editor` replacement on existing journal files. Always append via shell command to prevent `Missing old_text` errors and save tool calls:
+    ```bash
+    cat << 'EOF' >> /home/spak/TradingAgents/trading_journal/<TICKER>.md
+
+    ## Audit / Update: YYYY-MM-DD
+    - **Action**: [HOLD / BUY / TRIM / SELL] | **Order Status**: [N/A / PENDING / FILLED]
+    - **Price / Qty**: $[Price] ([Qty] shares) \vert{} **Stop Loss**:$[Stop]
+    - **Report Rating & Confidence**: [Rating] ([confidence_score])
+    - **Rationale / Post-Mortem**: [Why thesis holds despite rating, or why trade was executed]
+    EOF
+    ```
+  - **Mandatory HOLD Logging**: Every existing portfolio position that is audited and held (`NVDA`, `SPCX`, `MU`, etc.) MUST receive a timestamped `HOLD` append in Step 6 before concluding the workflow.
