@@ -20,3 +20,9 @@ Rating: Underweight (Short-term)
 - **Price / Qty**: $923.98 (0.0025 shares) | **Stop Loss**: $734.78
 - **Report Rating & Confidence**: Overweight (Medium)
 - **Rationale / Post-Mortem**: Long-term AI structural demand outweighs short-term macro noise. Maintaining core holding.
+
+## Audit / Update: 2026-10-28
+- **Action**: HOLD | **Order Status**: N/A
+- **Price / Qty**: $968.43 (0.0025 shares) | **Stop Loss**: $856.49
+- **Report Rating & Confidence**: Overweight (High)
+- **Rationale / Post-Mortem**: Strong fundamentals (PEG 0.16) and HBM catalyst. Holding through short-term technical resistance at 50-SMA (980.14).

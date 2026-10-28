@@ -72,3 +72,14 @@ This workflow triggers the end-to-end quantitative research and trading pipeline
   3. **Journal All Candidates (Trades + Holds)**:
      - For **new files**, create `/home/spak/TradingAgents/trading_journal/<TICKER>.md`.
      - For **existing files** (including all Bucket A positions held without trades), append a timestamped update block using `cat << 'EOF' >> ...` in a single batch shell command.
+
+### 7. Alert Synchronization (The Alarm)
+- **Goal**: Align Robinhood alerts with the final portfolio state to act as triggers for the next check-in.
+- **Action**:
+  1. **Audit Alerts**: Call `rboin__get_alerts` to see currently active alerts.
+  2. **Sync Stop Losses**: For every position currently held (Existing + New Buys):
+     - Identify the **Target Stop Loss** from the journal/report.
+     - If no alert exists for the ticker, call `rboin__create_alert` with `condition_type: "price_below"` and the Stop Loss as the `threshold`.
+     - If an alert exists but the price differs, call `rboin__update_alert` to match the current Stop Loss.
+  3. **Cleanup**: Delete alerts (`rboin__delete_alert`) for any tickers that were fully exited during Step 6.
+  4. **Confirmation**: Confirm to the user that the "Portfolio Alarm System" is synchronized.

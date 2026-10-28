@@ -18,3 +18,9 @@ Exit Plan: Stop Loss at $384.00 (adjusted for ATR). Exit if the 200-day SMA fail
 - **Price / Qty**: $429.30 (0.0941 shares) | **Stop Loss**: $390.00
 - **Report Rating & Confidence**: Overweight (High)
 - **Rationale / Post-Mortem**: Short-term recovery in progress. Price above 200 SMA. Holding for 50 SMA reclaim.
+
+## Audit / Update: 2026-10-28
+- **Action**: HOLD | **Order Status**: N/A
+- **Price / Qty**: $439.10 (0.0941 shares) | **Stop Loss**: $397.72
+- **Report Rating & Confidence**: Overweight (High)
+- **Rationale / Post-Mortem**: Monopoly on advanced nodes. Recovery in progress; holding for a confirmed break above 442.31 to increase exposure.

@@ -1,4 +1,5 @@
 import sys
+import uuid
 import warnings
 from enum import StrEnum
 from typing import Annotated
@@ -97,6 +98,8 @@ def analyze(
             raise typer.Exit(code=1) from None
 
     try:
+        if session_id is None:
+            session_id = uuid.uuid4().hex
         flags = {"ticker": ticker, "date": date, "analysts": analysts, "save": save, "show": show, "html": html, "session_id": session_id}
         run_analysis(checkpoint=checkpoint, portfolio=portfolio_context, flags=flags)
     except _NO_CONSOLE_ERRORS:

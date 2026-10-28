@@ -11,3 +11,9 @@ Exit Plan: Stop Loss at $293.15 (approx 2x ATR). Exit if the 10-year Treasury yi
 - **Price / Qty**: $339.72 (0.0966 shares) | **Stop Loss**: $323.00
 - **Report Rating & Confidence**: Overweight (Medium)
 - **Rationale / Post-Mortem**: Short-term bullish recovery observed, but long-term trend remains bearish. Watching for close above 346.87.
+
+## Audit / Update: 2026-10-28
+- **Action**: HOLD | **Order Status**: N/A
+- **Price / Qty**: $346.61 (0.0966 shares) | **Stop Loss**: $321.68
+- **Report Rating & Confidence**: Overweight (High)
+- **Rationale / Post-Mortem**: Exceptional growth (PEG 0.33). Short-term recovery at pivot point; holding for 50-SMA (353.52) reclaim.
