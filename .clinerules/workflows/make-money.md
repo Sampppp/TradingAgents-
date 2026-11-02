@@ -1,85 +1,92 @@
 # Workflow: Make Money
 
-This workflow triggers the end-to-end quantitative research and trading pipeline to audit existing positions for exit/trim signals, discover new high-probability opportunities, and propose risk-adjusted orders.
+This workflow triggers the end-to-end quantitative research and trading pipeline to reconcile open orders, audit existing positions, discover new whole-share and fractional opportunities, analyze them via the CLI, and execute risk-adjusted orders or watchlist triggers.
 
-**Reference Skill**: Strictly adhere to `.agents/skills/trading/SKILL.md` for CLI batch execution, sizing math, and journaling standards.
+**Reference Skill**: Strictly adhere to `.agents/skills/trading/SKILL.md` for CLI batch execution, order type selection, sizing math, and journaling standards.
 
 ## Trigger
 - **Command**: `/make-money`
-- **Intent**: "Audit my current portfolio for sell/trim signals, find new high-probability opportunities if buying power permits, analyze them deeply via the CLI, and propose risk-adjusted orders."
+- **Intent**: "Reconcile my orders and portfolio, audit holdings for exit/trim signals, find new opportunities, analyze them deeply via the CLI, and propose risk-adjusted Limit, Stop, Market, or Watchlist/Alert actions."
 
 ## Operational Pipeline
 
-### 1. Portfolio Audit & Discovery (The Eyes)
-- **Goal**: Establish account constraints first, audit all current holdings, and identify 3–5 new candidates (total universe: 3–8 tickers).
+### 1. Portfolio, Order & Tax Audit + Discovery (The Eyes)
+- **Goal**: Reconcile account state, audit current holdings, and identify 3–5 new candidates (total universe: 3–8 tickers).
 - **Action**:
-  1. **Account & Risk Audit**:
-     - Call `rboin__get_portfolio` and `rboin__get_equity_positions` (retain this state for the entire workflow; do not re-fetch unnecessarily).
-     - Read `/home/spak/TradingAgents/risk_profile.json` to determine available buying power, `max_position_pct`, and `max_position_usd`.
+  1. **Account, Order & Tax Audit**:
+     - Call `rboin__get_portfolio`, `rboin__get_equity_positions`, `rboin__get_equity_orders`, and `rboin__get_equity_tax_lots` (retain this state for the entire workflow).
+     - Read `/home/spak/TradingAgents/risk_profile.json` (`max_position_pct`, `max_position_usd`, `min_confidence`, `default_stop_loss_pct`).
+     - Reconcile any prior `PENDING` journal entries against `rboin__get_equity_orders` and flag stale open orders that should be canceled (`rboin__cancel_equity_order`).
      - Every current equity position is automatically a candidate for analysis.
-  2. **Market Scan (If Buying Power Exists or Rebalancing)**:
-     - Use `rboin__run_scan` or `rboin__create_scan` to identify 3–5 new high-probability candidates.
-     - **Criteria**: Quantitative value and momentum (e.g., PEG < 1.2, RSI 30–60, High Relative Volume), refined via discovery MCP tools (`rboin__get_financials`, `rboin__get_equity_technical_indicators`).
-     - **Fallback**: If scans are unavailable, use `rboin__get_popular_watchlists` $\rightarrow$ `rboin__get_watchlist_items`.
+  2. **Market Scan & Pre-CLI Vetting**:
+     - Use `rboin__run_scan` or `rboin__create_scan` to identify 3–5 new candidates (fallback: `rboin__get_popular_watchlists` $\rightarrow$ `rboin__get_watchlist_items`).
+     - **Price-Tier Diversity**: Include at least 1–2 candidates priced low enough that target allocation buys **$\ge 1$ whole share** (enabling resting `Limit` and `Stop` orders alongside fractional mega-caps).
+     - **Catalyst & Spread Vetting**: Call `rboin__get_earnings_calendar` and `rboin__get_equity_quotes` on candidates to flag imminent earnings (< 3 days) and check live prices.
 
 ### 2. Thesis Recall & Deep Analysis (The Brain)
-- **Goal**: Generate deep multi-agent conviction reports while maintaining historical thesis continuity.
+- **Goal**: Generate deep multi-agent conviction reports (`market,news,fundamentals,social` across 2 Debate Rounds and 2 Risk Rounds).
 - **Action**:
-  1. **Recall**: For every candidate that has a file in `/home/spak/TradingAgents/trading_journal/<TICKER>.md`, read it to recall the original thesis and exit plan.
-  2. **Batch Analyze**: Launch `cli.main` for all candidates (Existing + New) in a single sequential background loop using the **Batch Launch & Handoff Pattern** defined in `SKILL.md`.
-  3. **Handoff & Wait**: Provide the user with the batch verification command (`cat /home/spak/.tradingagents/logs/batch_status.txt && find ...`) and wait for confirmation. **DO NOT** poll automatically and **DO NOT** substitute `complete_report.md` with direct MCP tool calls.
+  1. **Recall**: Read `/home/spak/TradingAgents/trading_journal/<TICKER>.md` for every candidate that has an existing journal.
+  2. **Batch Analyze**: Launch `cli.main` for all candidates in a single sequential background loop using the **Batch Launch & Live Progress Pattern** in `SKILL.md`.
+  3. **Handoff & Wait**: Provide the user with both the **Quick Status & Report Paths Check** command and the **Live Stage Attach (`watch`)** command from `SKILL.md`. Wait for user confirmation. **DO NOT** poll automatically.
 
-### 3. Two-Bucket Synthesis & Ranking
+### 3. Two-Bucket Dialectical Synthesis & Ranking
 - **Goal**: Prioritize capital protection and exits before allocating capital to new buys.
-- **Action**: Read all generated `complete_report.md` files, extracting both `Rating` and `confidence_score`:
+- **Action**: Read all generated `complete_report.md` files from `batch_manifest.txt`, extracting `Rating`, `confidence_score`, the **Bear Researcher's counter-thesis**, and the **Risk Management Team's recommendation**:
   1. **Bucket A — Existing Holdings (Sell / Trim / Hold)**:
-     - Compare `complete_report.md` against the original thesis and Stop Loss in `trading_journal/<TICKER>.md`.
-     - If a holding is rated `Underweight` or `Sell`, default to **Exit/Trim** unless the original catalyst in `<TICKER>.md` explicitly overrides short-term weakness (if overriding to `Hold`, you MUST justify why in the proposal).
-  2. **Bucket B — New Candidates (Buys)**:
-     - Filter out any candidate with `Rating` of `Hold` or lower, OR `confidence_score < min_confidence` (from `risk_profile.json`).
+     - Compare `complete_report.md` against `<TICKER>.md` and check `rboin__get_equity_tax_lots` for tax/wash-sale impact.
+     - If rated `Underweight` or `Sell`, default to **Exit/Trim** unless the original catalyst in `<TICKER>.md` explicitly overrides short-term weakness (must be justified in the proposal).
+  2. **Bucket B — New Candidates (Buys & Waitlist)**:
+     - Filter out any candidate with `Rating` of `Hold` or lower, OR `confidence_score < min_confidence` (check `rboin__get_realized_pnl` / tax lots to ensure no 30-day Wash Sale violation).
      - Rank remaining candidates by `confidence_score` and `Rating` (`Buy > Overweight`).
 
-### 4. Position Sizing & Order Type Selection (The Filter)
-- **Goal**: Calculate exact share/dollar quantities within account limits and select a valid broker order type.
+### 4. Position Sizing & Multi-Order Selection (The Filter)
+- **Goal**: Calculate exact quantities and select the optimal broker order type or waitlist trigger.
 - **Action**:
-  - Using Step 1 portfolio data and `risk_profile.json` (plus any cash freed by proposed Sells), calculate the target allocation within `max_position_pct` and `max_position_usd`.
-  - **Order Type Rule**: If the target allocation results in **fractional shares**, specify `Market Order ($Dollar_Amount)` (as Robinhood rejects fractional limit orders). Only specify `Limit Order` for whole-share quantities.
-  - Set the Stop Loss using the report's support level, capped at a maximum drawdown of `default_stop_loss_pct` from the live entry price.
+  - Calculate target allocation within `max_position_pct` and `max_position_usd` (including cash freed by proposed Bucket A Sells).
+  - Fetch fresh prices/spreads via `rboin__get_equity_quotes` (and `rboin__get_equity_price_book` if needed) and select the execution vehicle:
+    - **Whole Shares ($\ge 1$ integer qty)**: Propose a `Limit Order` at the report's recommended entry/support level.
+    - **Fractional Shares within `<= 1.5%` of Target Entry**: Propose a `Market Order ($Dollar_Amount)`.
+    - **Fractional Shares `> 1.5%` above Target Entry**: Propose **Waitlist + Buy-Zone Alert** (`rboin__add_watchlist_item` + `rboin__create_alert` at the target pullback price) rather than chasing slippage.
+  - Set the Stop Loss using the report's support level, capped at `default_stop_loss_pct` below entry.
 
 ### 5. Verification & Proposal
 - **Goal**: Present a transparent, fully audited trade proposal.
 - **Action**:
   1. Print the **Verification Checklist**:
-     - [ ] Portfolio, positions, and `risk_profile.json` (`max_position_pct`, `max_position_usd`, `min_confidence`, `default_stop_loss_pct`) loaded upfront
-     - [ ] Original theses recalled from `trading_journal/` for existing holdings
-     - [ ] Market scan completed for new candidates
-     - [ ] `cli.main` executed for all candidates (via Batch Launch & Handoff verification)
-     - [ ] All `complete_report.md` files synthesized with `Rating` and `confidence_score`
-     - [ ] Fractional orders set to `Market ($)` and sizing validated against risk caps
-  2. Present the **Structured Proposal** (list Bucket A Holdings/Exits first, followed by Bucket B New Buys):
-     - **Ticker**: [SYMBOL]
+     - [ ] Portfolio, positions, open orders (`get_equity_orders`), tax lots (`get_equity_tax_lots`), and `risk_profile.json` audited upfront
+     - [ ] Original theses recalled from `trading_journal/` and pending orders reconciled
+     - [ ] Market scan and earnings calendar check completed for new candidates
+     - [ ] `cli.main` (`market,news,fundamentals,social`) executed and verified via `batch_manifest.txt`
+     - [ ] 2-Round Bull/Bear Debate and 2-Round Risk Debate synthesized for all candidates
+     - [ ] Order types (`Limit`, `Market $`, `Stop`, or `Waitlist Alert`) matched to whole vs. fractional shares and live slippage
+  2. Present the **Structured Proposal** (list Stale Order Cancellations and Bucket A Holdings first, followed by Bucket B New Buys/Waitlist):
+     - **Ticker**: [SYMBOL] (Report Path: `[path from batch_manifest.txt]`)
      - **Rating & Confidence**: [Rating] (`confidence_score` vs. `min_confidence`)
-     - **Thesis**: [Summary from report + comparison to original journal thesis; justify any `Hold` on an `Underweight` rating]
-     - **Action & Order Type**: [Buy / Sell / Trim / Hold] — [Market ($Amount) for fractional | Limit ($Price) for whole shares] | **Target Stop Loss**: $[Stop Loss]
+     - **Dialectical Thesis**: [Bull catalyst + Bear counter-argument + Risk Manager note; justify any `Hold` on an `Underweight` rating]
+     - **Action & Vehicle**: [Buy / Sell / Trim / Hold / Waitlist] — [`Limit @ $Price` (Whole Shares) | `Market ($Amount)` (Fractional <=1.5% slippage) | `Waitlist + Alert @ $Price` (Fractional >1.5% slippage)]
+     - **Target Stop Loss & Take Profit**: Stop: $[Stop Loss] ([X]% risk) | Target: $[Take Profit]
      - **Sizing**: [Quantity] shares (~$[Total USD Amount])
-     - **Risk Check**: [PASSED / FAILED] (cite `%` of portfolio, USD cap, and `min_confidence` check)
+     - **Risk & Tax Check**: [PASSED / FAILED] (cite `%` of portfolio, USD cap, `min_confidence`, and Wash-Sale/Earnings check)
 
 ### 6. Execution & Journaling (The Hands)
-- **Goal**: Safe, deterministic order placement and 100% journal coverage across both buckets.
+- **Goal**: Safe, deterministic order placement and 100% journal coverage.
 - **Action**:
-  1. **Await explicit user approval** for proposed trades.
-  2. If approved: Execute `rboin__review_equity_order` $\rightarrow$ `rboin__place_equity_order`. (If `review_equity_order` reveals live price slippage `> 2%` above the report price, adjust the Stop Loss proportionally).
+  1. **Await explicit user approval** for proposed orders, cancellations, or watchlist additions.
+  2. If approved:
+     - Cancel any approved stale orders via `rboin__cancel_equity_order`.
+     - Execute trades via `rboin__review_equity_order` $\rightarrow$ `rboin__place_equity_order`.
+     - For approved Waitlist candidates, call `rboin__add_watchlist_item`.
   3. **Journal All Candidates (Trades + Holds)**:
-     - For **new files**, create `/home/spak/TradingAgents/trading_journal/<TICKER>.md`.
-     - For **existing files** (including all Bucket A positions held without trades), append a timestamped update block using `cat << 'EOF' >> ...` in a single batch shell command.
+     - Create new `/home/spak/TradingAgents/trading_journal/<TICKER>.md` files for first-time positions.
+     - Append timestamped update blocks to existing journals (including all Bucket A `HOLD` positions) via `cat << 'EOF' >> ...` in a single batch shell command.
 
-### 7. Alert Synchronization (The Alarm)
-- **Goal**: Align Robinhood alerts with the final portfolio state to act as triggers for the next check-in.
+### 7. Stop-Loss & Alert Synchronization (The Alarm)
+- **Goal**: Protect every held position and monitor Waitlist buy zones via on-exchange stops or Robinhood alerts.
 - **Action**:
-  1. **Audit Alerts**: Call `rboin__get_alerts` to see currently active alerts.
-  2. **Sync Stop Losses**: For every position currently held (Existing + New Buys):
-     - Identify the **Target Stop Loss** from the journal/report.
-     - If no alert exists for the ticker, call `rboin__create_alert` with `condition_type: "price_below"` and the Stop Loss as the `threshold`.
-     - If an alert exists but the price differs, call `rboin__update_alert` to match the current Stop Loss.
-  3. **Cleanup**: Delete alerts (`rboin__delete_alert`) for any tickers that were fully exited during Step 6.
-  4. **Confirmation**: Confirm to the user that the "Portfolio Alarm System" is synchronized.
+  1. **Audit Alerts**: Call `rboin__get_alerts`.
+  2. **Protect Held Positions**:
+     - **Whole-Share Positions**: Ask the user if they want an on-exchange resting Stop-Loss order placed (`rboin__review_equity_order` $\rightarrow$ `rboin__place_equity_order` with `side: "sell"`, `trigger: "stop"`, `stop_price: Target_Stop_Loss`), AND/OR sync a `price_below` alert.
+     - **Fractional Positions**: Sync a Robinhood alert (`rboin__create_alert` or `rboin__update_alert` with `condition_type: "price_below"`, `threshold: Target_Stop_Loss`) and optional Take-Profit alert (`condition_type: "price_above"`).
+  3. **Set Waitlist Buy-Zone Alerts**: For any Bucket B candidate placed on the Waitlist due to entry slippage, create a `price_below` alert at its target entry price.
+  4. **Cleanup**: Call `rboin__delete_alert` for any tickers fully exited in Step 6.
