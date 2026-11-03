@@ -18,7 +18,7 @@ This workflow triggers the end-to-end quantitative research and trading pipeline
 - **Goal**: Reconcile account state, audit current holdings, and identify 3–5 new candidates (total universe: 3–8 tickers).
 - **Action**:
   1. **Account, Order & Tax Audit**:
-     - Call `tools.robinhood.get_portfolio`, `tools.robinhood.get_equity_positions`, `tools.robinhood.get_equity_orders`, and `tools.robinhood.get_equity_tax_lots` (retain this state for the entire workflow).
+     - Call `tools.robinhood.get_portfolio`, `tools.robinhood.get_equity_positions`, `tools.robinhood.get_equity_orders`, and `tools.robinhood.get_equity_tax_lots` (retain this state, **especially current buying power**, for the entire workflow).
      - Read `/home/spak/TradingAgents/risk_profile.json` (`max_position_pct`, `max_position_usd`, `min_confidence`, `default_stop_loss_pct`).
      - Reconcile any prior `PENDING` journal entries against `tools.robinhood.get_equity_orders` and flag stale open orders that should be canceled (`tools.robinhood.cancel_equity_order`).
      - Every current equity position is automatically a candidate for analysis.
@@ -47,6 +47,7 @@ This workflow triggers the end-to-end quantitative research and trading pipeline
 ### 4. Position Sizing & Multi-Order Selection (The Filter)
 - **Goal**: Calculate exact quantities and select the optimal broker order type or waitlist trigger.
 - **Action**:
+  - **Liquidity Check**: Verify current buying power via `tools.robinhood.get_portfolio`. Do NOT propose any buy orders that exceed available liquidity. If funds are insufficient for the target allocation, scale down the proposal or move the candidate to the Waitlist.
   - Calculate target allocation within `max_position_pct` and `max_position_usd` (including cash freed by proposed Bucket A Sells).
   - Fetch fresh prices/spreads via `tools.robinhood.get_equity_quotes` (and `tools.robinhood.get_equity_price_book` if needed) and select the execution vehicle:
     - **Whole Shares ($\ge 1$ integer qty)**: Propose a `Limit Order` at the report's recommended entry/support level.
@@ -91,6 +92,6 @@ This workflow triggers the end-to-end quantitative research and trading pipeline
   1. **Audit Alerts**: Call `tools.robinhood.get_alerts`.
   2. **Protect Held Positions**:
      - **Whole-Share Positions**: Ask the user if they want an on-exchange resting Stop-Loss order placed (`tools.robinhood.review_equity_order` $\rightarrow$ `tools.robinhood.place_equity_order` with `side: "sell"`, `trigger: "stop"`, `stop_price: Target_Stop_Loss`), AND/OR sync a `price_below` alert.
-     - **Fractional Positions**: Sync a Robinhood alert (`tools.robinhood.create_alert` or `tools.robinhood.update_alert` with `condition_type: "price_below"`, `threshold: Target_Stop_Loss`) and optional Take-Profit alert (`condition_type: "price_above"`).
+     - **Fractional Positions**: Sync a Robinhood alert (`tools.robinhood.create_alert` or `tools.robinhood.update_alert` with `condition_type: "price_below"`, `threshold: Target_Stop_Loss`) and optional Take-Profit alert (`condition_type: "price_above"`). **Do NOT use 'Virtual Stops' (manual journal tracking) as a substitute for broker-side alerts.**
   3. **Set Waitlist Buy-Zone Alerts**: For any Bucket B candidate placed on the Waitlist due to entry slippage, create a `price_below` alert at its target entry price.
   4. **Cleanup**: Call `tools.robinhood.delete_alert` for any tickers fully exited in Step 6.

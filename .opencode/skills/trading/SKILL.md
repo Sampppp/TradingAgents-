@@ -16,7 +16,14 @@ To prevent "shortcut reasoning," the agent MUST adhere to these boundaries:
    - **The CLI** (`cli.main`) is for **DECISIONS**. No trade (Equity or Option Buy, Trim, or Sell) may be proposed without a corresponding `complete_report.md` generated today by the CLI.
 2. **No Vacuum Recommendations**:
    - Every recommendation MUST be audited against the user's live portfolio (`tools.robinhood.get_portfolio`, `tools.robinhood.get_equity_positions`), open order state (`tools.robinhood.get_equity_orders`), tax lots (`tools.robinhood.get_equity_tax_lots`), and `/home/spak/TradingAgents/risk_profile.json`.
-3. **Quantitative Sizing & Dialectical Synthesis**:
+3. **Liquidity First**:
+   - Never propose a buy order without first verifying available buying power via `tools.robinhood.get_portfolio`. Proposals must be mathematically possible given current account liquidity.
+4. **Tool Integrity**:
+   - Do NOT call top-level tools (like `read`, `write`, `edit`) inside `execute` blocks. Use shell commands (`cat`, `grep`, `sed`) for file operations within `execute`.
+   - If unsure about a tool's existence or signature, use `search` before calling.
+5. **No Virtual Stops**:
+   - Do NOT implement 'Virtual Stops' (manual tracking in journals). All risk protection must be implemented via on-exchange Stop orders (for whole shares) or Robinhood Price Alerts (for fractional shares).
+6. **Quantitative Sizing & Dialectical Synthesis**:
    - Every proposal MUST include: **Ticker, Order Type (`Limit`, `Market`, `Stop`, `Stop-Limit`, or `Waitlist Alert`), Entry/Exit Price, Stop Loss, Exact Quantity, Bear Counter-Thesis (from the 2-round Researcher Debate), and Risk Manager Verdict (from the 2-round Risk Debate)**.
 
 ## 🛠 Technical Execution & Live Progress Standards
