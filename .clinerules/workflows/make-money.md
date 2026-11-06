@@ -89,4 +89,8 @@ This workflow triggers the end-to-end quantitative research and trading pipeline
      - **Whole-Share Positions**: Ask the user if they want an on-exchange resting Stop-Loss order placed (`rboin__review_equity_order` $\rightarrow$ `rboin__place_equity_order` with `side: "sell"`, `trigger: "stop"`, `stop_price: Target_Stop_Loss`), AND/OR sync a `price_below` alert.
      - **Fractional Positions**: Sync a Robinhood alert (`rboin__create_alert` or `rboin__update_alert` with `condition_type: "price_below"`, `threshold: Target_Stop_Loss`) and optional Take-Profit alert (`condition_type: "price_above"`).
   3. **Set Waitlist Buy-Zone Alerts**: For any Bucket B candidate placed on the Waitlist due to entry slippage, create a `price_below` alert at its target entry price.
+  - **Option Trade Viability Check (Prevent Low-Probability / Capital-Mismatch Proposals)**:
+    - If proposing ANY option: confirm `confidence_score >= min_confidence` (do NOT lower gate), `premium <= available_cash`, `delta >= 0.05`, `chance_of_profit_long >= 0.10`, and `bid_price > 0`. If any fails, propose **Wait / No Option Trade** instead of finding the cheapest deep-OTM contract.
+    - Include in proposal: Ticker, Option Type, Strike, Expiration, Premium Cost, Delta, Chance of Profit, Bid/Ask Liquidity, Capital Impact.
+
   4. **Cleanup**: Call `rboin__delete_alert` for any tickers fully exited in Step 6.

@@ -18,7 +18,7 @@ This workflow triggers the end-to-end quantitative research and trading pipeline
 - **Goal**: Reconcile account state, audit current holdings, and identify 3–5 new candidates (total universe: 3–8 tickers).
 - **Action**:
   1. **Account, Order & Tax Audit**:
-     - Call `tools.robinhood.get_portfolio`, `tools.robinhood.get_equity_positions`, `tools.robinhood.get_equity_orders`, and `tools.robinhood.get_equity_tax_lots` (retain this state, **especially current buying power**, for the entire workflow).
+     - Call `tools.robinhood.get_portfolio`, `tools.robinhood.get_equity_positions`, `tools.robinhood.get_equity_orders`, and `tools.robinhood.get_equity_tax_lots` (retain this state, **especially current buying power**, for the entire workflow). Treat the output of these calls as the absolute source of truth; do not assume holdings based on previous turns.
      - Read `/home/spak/TradingAgents/risk_profile.json` (`max_position_pct`, `max_position_usd`, `min_confidence`, `default_stop_loss_pct`).
      - Reconcile any prior `PENDING` journal entries against `tools.robinhood.get_equity_orders` and flag stale open orders that should be canceled (`tools.robinhood.cancel_equity_order`).
      - Every current equity position is automatically a candidate for analysis.
@@ -36,7 +36,7 @@ This workflow triggers the end-to-end quantitative research and trading pipeline
 
 ### 3. Two-Bucket Dialectical Synthesis & Ranking
 - **Goal**: Prioritize capital protection and exits before allocating capital to new buys.
-- **Action**: Read all generated `complete_report.md` files from `batch_manifest.txt`, extracting `Rating`, `confidence_score`, the **Bear Researcher's counter-thesis**, and the **Risk Management Team's recommendation**:
+- **Action**: To avoid output truncation, do NOT `cat` all reports at once. Instead, use a shell script or `grep` within `execute` to extract the `Rating`, `confidence_score`, **Bear Researcher's counter-thesis**, and **Risk Management Team's recommendation** from each path in `batch_manifest.txt` into a summary table. Only read the full `complete_report.md` for candidates that pass the initial filter:
   1. **Bucket A — Existing Holdings (Sell / Trim / Hold)**:
      - Compare `complete_report.md` against `<TICKER>.md` and check `tools.robinhood.get_equity_tax_lots` for tax/wash-sale impact.
      - If rated `Underweight` or `Sell`, default to **Exit/Trim** unless the original catalyst in `<TICKER>.md` explicitly overrides short-term weakness (must be justified in the proposal).

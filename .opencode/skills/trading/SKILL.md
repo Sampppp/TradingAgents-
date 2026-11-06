@@ -20,11 +20,15 @@ To prevent "shortcut reasoning," the agent MUST adhere to these boundaries:
    - Never propose a buy order without first verifying available buying power via `tools.robinhood.get_portfolio`. Proposals must be mathematically possible given current account liquidity.
 4. **Tool Integrity**:
    - Do NOT call top-level tools (like `read`, `write`, `edit`) inside `execute` blocks. Use shell commands (`cat`, `grep`, `sed`) for file operations within `execute`.
+   - When calling MCP tools (e.g., Robinhood) inside `execute`, you MUST use the `tools` object (e.g., `await tools.robinhood.get_portfolio()`). Never call them as standalone functions.
    - If unsure about a tool's existence or signature, use `search` before calling.
 5. **No Virtual Stops**:
    - Do NOT implement 'Virtual Stops' (manual tracking in journals). All risk protection must be implemented via on-exchange Stop orders (for whole shares) or Robinhood Price Alerts (for fractional shares).
 6. **Quantitative Sizing & Dialectical Synthesis**:
    - Every proposal MUST include: **Ticker, Order Type (`Limit`, `Market`, `Stop`, `Stop-Limit`, or `Waitlist Alert`), Entry/Exit Price, Stop Loss, Exact Quantity, Bear Counter-Thesis (from the 2-round Researcher Debate), and Risk Manager Verdict (from the 2-round Risk Debate)**.
+
+7. **Source of Truth**:
+   - The output of `tools.robinhood.get_portfolio` and `tools.robinhood.get_equity_positions` is the ONLY source of truth for current holdings. Do NOT rely on memory, previous turns, or journal files to determine what assets are currently in the portfolio.
 
 ## 🛠 Technical Execution & Live Progress Standards
 To avoid timeouts, buffered logs, and blind waiting during `TRADINGAGENTS_MAX_DEBATE_ROUNDS=2` and `TRADINGAGENTS_MAX_RISK_ROUNDS=2` runs, the agent MUST use this exact batch pattern:

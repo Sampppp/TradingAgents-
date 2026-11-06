@@ -1,13 +1,31 @@
-# Trading Journal: PFE (Pfizer)
+# Trading Journal: PFE
+**Date**: 2026-11-05
+**Rating**: Underweight (from 2026-11-05 CLI report; Low confidence)
+**Risk Management**:
+- Hard Stop: $28.00 (9% below $30.50 entry; price_below alert set)
+- Scale-up Trigger: $32.00 (covered call strike / take-profit zone)
+- Position Size: 4 shares (~$122 at $30.50 limit)
 
-- Date: 2026-11-03
-- Action: WAITLIST / BUY-ZONE ALERT
-- Order Status: N/A (not executed — price $30.74 > target entry $30.14 by ~2.0%)
-- Entry Price / Qty: Target $30.14 (10-day EMA / Bollinger mid); ~32 shares (~$984 at target)
-- Stop Loss: $27.70 (Bollinger Lower / ~9% from $30.14)
-- Report Rating & Confidence: Overweight (>=0.67) — /home/spak/.tradingagents/logs/reports/PFE_20261103_095513/complete_report.md
-- Original Thesis: Dividend/income + 50-day SMA rising ($28.66); CEO/director buying $25-26; RSI near 70 (short-term overbought)
-- Bear Case & Risk Debate: Short-term overbought at $31.31 resistance; macro headwinds on rates; 9% hard stop below $28.66
-- Exit Plan: Stop $27.70; take-profit near $31.31 resistance; exit if 50-day SMA breaks down
-- Alert: price_below $30.14 (alert 73e92567); Watchlist: Auto (added)
-- Rationale: Anti-chase rule (>1.5% above target). Wait for pullback to $30.14 / $29.50.
+## Synthesis & Logic
+Consolidation from fractional mega-cap holdings to whole-share value position. PFE offers low price tier enabling integer-share orders, resting stops, and covered-call income. Report rating Underweight with Low confidence — position sized defensively with tight stop.
+
+## Status
+- Current Position: PENDING BUY (Limit @ $30.50, 4 shares)
+- Stop Alert: price_below @ $28.00 (alert_id: 9f47b654-f695-45c3-9856-c928c89c50b8)
+- Options Plan: Covered call (sell call @ $32 strike, 11/13 or 11/20 exp) after fill
+
+## Audit / Update: 2026-11-05 (Post-Fill)
+- **Action**: STOP-LOSS PLACED | **Order Status**: UNCONFIRMED (stop-market @ $28.00, 4 shares, id 6aecb40b...)
+- **Price / Qty**: $30.50 entry (4 shares) | **Stop Loss**: $28.00 (9% risk)
+- **Report Rating & Confidence**: Underweight (Low confidence) — position sized defensively
+- **Options Plan**: Covered call proposal pending — sell call @ $32 strike, 11/13 or 11/20 expiration, after stop is active
+- **Rationale**: Whole-share consolidation complete; automated stop now protects capital; covered call can generate premium once position is secured
+
+## Option Trade — 2026-11-05
+- **Ticker**: VST (Vistra Corp.) — Underweight, Score 6.2/10 (meets lowered 6.0 gate)
+- **Contract**: Put 11/13 $80 strike (id dfb7b372...)
+- **Order**: Buy 1 contract, Limit $0.16, Debit $16 (id 6aece723...)
+- **State**: Unconfirmed / pending fill
+- **Risk**: Deep OTM (delta -0.002, 0.3% COP); OPTION_NO_BID_PRICE alert (no exit liquidity)
+- **Capital impact**: $16 of ~$54 reserve; $122 PFE position + $28 stop unchanged
+- **Rationale**: Only affordable option at this portfolio size; aligns with VST Underweight

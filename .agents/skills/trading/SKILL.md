@@ -52,6 +52,16 @@ To avoid timeouts, buffered logs, and blind waiting during `TRADINGAGENTS_MAX_DE
            NEW_REPORT=$(find "$LOG_DIR/reports/" -path "*${TICKER}_*/complete_report.md" -mtime -1 2>/dev/null | sort | tail -n 1)
            echo "[COMPLETED $NUM/$TOTAL]$TICKER -> ${NEW_REPORT:-FAILED_CHECK_LOG}" >> "$LOG_DIR/batch_manifest.txt"
          fi
+- **Options Orders — Additional Mandatory Checks (Prevent Low-Probability / Capital-Mismatch Proposals)**:
+  - Before proposing ANY option (long put/call, spread, or hedge), verify:
+    1. `trade_value_multiplier` (typically 100.0000) — calculate total premium = `price × 100 × quantity`. Reject if premium > available cash (`get_portfolio` / `get_equity_positions` + cash reserve).
+    2. `confidence_score >= min_confidence` (from `risk_profile.json`) — do NOT lower the gate ad hoc to justify a trade.
+    3. `delta` and `chance_of_profit_long` from `get_option_quotes` — if `chance_of_profit_long < 0.10` or `delta < 0.05`, flag as **LOTTERY TICKET / NEGLIGIBLE PROBABILITY** and require explicit user acknowledgment that the trade is speculative, not a hedge or high-conviction play.
+    4. `bid_price` / `ask_price` — if `bid_price == 0` or `OPTION_NO_BID_PRICE` alert present, warn that exit liquidity is zero; do not present as a liquid trade.
+  - **Never propose an option solely because it is the only contract that fits a small cash balance.** If no option passes the above checks, propose **Wait / No Option Trade** instead.
+  - For direct option buys, always include: **Ticker, Option Type (Put/Call), Strike, Expiration, Premium Cost, Delta, Chance of Profit, Bid/Ask Liquidity, and Capital Impact** in the proposal.
+
+
        done
        echo "COMPLETE ($TOTAL/$TOTAL)" > "$LOG_DIR/batch_status.txt"
      ' >/dev/null 2>&1 &
